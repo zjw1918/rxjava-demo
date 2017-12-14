@@ -17,6 +17,10 @@ public class RandomUserResults {
         public String dob;
         public UserPicture picture;
 
+        public String getFullName() {
+            return name.first + " " + name.last;
+        }
+
         public class UserName {
             public String title;
             public String first;

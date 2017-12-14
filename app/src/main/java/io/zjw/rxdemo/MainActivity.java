@@ -1,7 +1,7 @@
 package io.zjw.rxdemo;
 
-import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.text.format.DateFormat;
@@ -21,18 +21,12 @@ import java.util.concurrent.TimeUnit;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
-import io.reactivex.BackpressureStrategy;
-import io.reactivex.Maybe;
 import io.reactivex.Observable;
 import io.reactivex.android.schedulers.AndroidSchedulers;
-import io.reactivex.functions.Consumer;
 import io.reactivex.schedulers.Schedulers;
-import io.reactivex.subjects.PublishSubject;
 import io.zjw.rxdemo.models.StockUpdate;
 import io.zjw.rxdemo.retrofit.RandomUserService;
 import io.zjw.rxdemo.retrofit.RetrofitRandomUserFactory;
-import io.zjw.rxdemo.retrofit.RetrofitYahooServiceFactory;
-import io.zjw.rxdemo.retrofit.YahooService;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "MainActivity";
@@ -89,14 +83,29 @@ public class MainActivity extends AppCompatActivity {
 //                    log(data.query.results.quote.get(0).symbol);
 //                }, this::log);
 
-
         RandomUserService randomUserService = new RetrofitRandomUserFactory().create();
-        randomUserService.fetch(3, "female")
-                .subscribeOn(Schedulers.io())
+//        randomUserService.fetch(8, "female")
+//                .subscribeOn(Schedulers.io())
+//                .toObservable()
 //                .map(r -> r.results)
+//                .flatMap(r -> Observable.fromIterable(r))
+//                .map(r -> StockUpdate.create(r))
+//                .observeOn(AndroidSchedulers.mainThread())
+//                .subscribe(data -> {
+//                    log("subscribe: " + data);
+//                    stockDataAdapter.add(data);
+//                });
+        Observable.interval(0, 5, TimeUnit.SECONDS)
+                .doOnNext(i -> stockDataAdapter.clear())
+                .flatMap(i -> randomUserService.fetch(3, "female").toObservable())
+                .subscribeOn(Schedulers.io())
+                .map(r -> r.results)
+                .flatMap(r -> Observable.fromIterable(r))
+                .map(r -> StockUpdate.create(r))
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(data -> {
-                    log("subscribe", data.results.get(0));
+                    log("subscribe: " + data);
+                    stockDataAdapter.add(data);
                 });
 
     }
@@ -124,7 +133,12 @@ public class MainActivity extends AppCompatActivity {
 
         public void add(StockUpdate stockUpdate) {
             list.add(stockUpdate);
-            notifyItemInserted(list.size() - 1);
+            notifyDataSetChanged();
+//            notifyItemInserted(list.size() - 1);
+        }
+
+        public void clear() {
+            list.clear();
         }
     }
 

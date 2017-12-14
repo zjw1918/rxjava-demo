@@ -11,6 +11,6 @@ import retrofit2.http.Query;
  */
 
 public interface RandomUserService {
-    @GET("api")
+    @GET("api?nat=ch")
     Single<RandomUserResults> fetch(@Query("results") int results, @Query("gender") String gender);
 }
