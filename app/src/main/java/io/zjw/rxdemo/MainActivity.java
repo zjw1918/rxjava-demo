@@ -27,6 +27,7 @@ import io.reactivex.schedulers.Schedulers;
 import io.zjw.rxdemo.models.StockUpdate;
 import io.zjw.rxdemo.retrofit.RandomUserService;
 import io.zjw.rxdemo.retrofit.RetrofitRandomUserFactory;
+import io.zjw.rxdemo.storio.StorIOFactory;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "MainActivity";
@@ -102,11 +103,12 @@ public class MainActivity extends AppCompatActivity {
                 .map(r -> r.results)
                 .flatMap(r -> Observable.fromIterable(r))
                 .map(r -> StockUpdate.create(r))
+                .doOnNext(this::saveStockUpdate)
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(data -> {
                     log("subscribe: " + data);
                     stockDataAdapter.add(data);
-                });
+                }, this::log);
 
     }
 
@@ -161,6 +163,18 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    // save sqlite
+    public void saveStockUpdate(StockUpdate stockUpdate) {
+        log("saveStockUpdate", stockUpdate.getStockSymbol());
+        StorIOFactory.get(this)
+                .put()
+                .object(stockUpdate)
+                .prepare()
+                .asRxSingle()
+                .subscribe();
+    }
+
+    // log
     private void log(String stage, String item) {
         Log.d(TAG, stage + ":" + Thread.currentThread().getName() + ":" + item);
     }
@@ -173,7 +187,7 @@ public class MainActivity extends AppCompatActivity {
         Log.d(TAG, stage + ":" + Thread.currentThread().getName());
     }
     private void log(Throwable throwable) {
-        Log.e(TAG, "Error", throwable);
+        Log.e(TAG, "Error on " + Thread.currentThread().getName() + ":", throwable);
     }
 
 }

@@ -11,6 +11,7 @@ import io.zjw.rxdemo.gson.RandomUserResults;
  */
 
 public class StockUpdate implements Serializable {
+    private Integer id;
     private final String stockSymbol;
     private final BigDecimal price;
     private final Date date;
@@ -35,5 +36,13 @@ public class StockUpdate implements Serializable {
 
     public Date getDate() {
         return date;
+    }
+
+    public Integer getId() {
+        return id;
+    }
+
+    public void setId(Integer id) {
+        this.id = id;
     }
 }
