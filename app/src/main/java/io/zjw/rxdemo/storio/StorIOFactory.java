@@ -31,31 +31,31 @@ public class StorIOFactory {
                 .sqliteOpenHelper(new StorIODbHelper(context))
                 .addTypeMapping(StockUpdate.class, SQLiteTypeMapping.<StockUpdate>builder()
                         .putResolver(new StockUpdatePutResolver())
-                        .getResolver(createGetResolver())
-                        .deleteResolver(createDeleteResolver())
+                        .getResolver(new StockUpdateGetResolver())
+                        .deleteResolver(new StockUpdateDeleteResolver())
                         .build())
                 .build();
         return INSTANCE;
     }
 
-    private static GetResolver<StockUpdate> createGetResolver() {
-        return new DefaultGetResolver<StockUpdate>() {
-            @NonNull
-            @Override
-            public StockUpdate mapFromCursor(@NonNull StorIOSQLite storIOSQLite, @NonNull Cursor cursor) {
-                return null;
-            }
-        };
-    }
-
-    private static DeleteResolver<StockUpdate> createDeleteResolver() {
-        return new DefaultDeleteResolver<StockUpdate>() {
-            @NonNull
-            @Override
-            protected DeleteQuery mapToDeleteQuery(@NonNull StockUpdate object) {
-                return null;
-            }
-        };
-    }
+//    private static GetResolver<StockUpdate> createGetResolver() {
+//        return new DefaultGetResolver<StockUpdate>() {
+//            @NonNull
+//            @Override
+//            public StockUpdate mapFromCursor(@NonNull StorIOSQLite storIOSQLite, @NonNull Cursor cursor) {
+//                return null;
+//            }
+//        };
+//    }
+//
+//    private static DeleteResolver<StockUpdate> createDeleteResolver() {
+//        return new DefaultDeleteResolver<StockUpdate>() {
+//            @NonNull
+//            @Override
+//            protected DeleteQuery mapToDeleteQuery(@NonNull StockUpdate object) {
+//                return null;
+//            }
+//        };
+//    }
 
 }

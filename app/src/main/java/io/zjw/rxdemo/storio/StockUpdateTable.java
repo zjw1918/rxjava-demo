@@ -5,7 +5,7 @@ package io.zjw.rxdemo.storio;
  */
 
 public class StockUpdateTable {
-    static final String TABLE = "stock_updates";
+    public static final String TABLE = "stock_updates";
     static class Columns {
         static final String ID = "_id";
         static final String STOCK_SYMBOL = "stock_symbol";

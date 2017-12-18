@@ -10,6 +10,9 @@ import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
+
+import com.pushtorefresh.storio2.sqlite.queries.Query;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
@@ -22,12 +25,19 @@ import java.util.concurrent.TimeUnit;
 import butterknife.BindView;
 import butterknife.ButterKnife;
 import io.reactivex.Observable;
+import io.reactivex.Observer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.plugins.RxJavaPlugins;
 import io.reactivex.schedulers.Schedulers;
+import io.zjw.rxdemo.errors.ErrorHandler;
+import io.zjw.rxdemo.gson.RandomUserResults;
 import io.zjw.rxdemo.models.StockUpdate;
 import io.zjw.rxdemo.retrofit.RandomUserService;
 import io.zjw.rxdemo.retrofit.RetrofitRandomUserFactory;
+import io.zjw.rxdemo.storio.StockUpdateTable;
 import io.zjw.rxdemo.storio.StorIOFactory;
+
+import static hu.akarnokd.rxjava.interop.RxJavaInterop.toV2Observable;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "MainActivity";
@@ -37,13 +47,21 @@ public class MainActivity extends AppCompatActivity {
     @BindView(R.id.stock_updates_recycler_view)
     RecyclerView recyclerView;
 
+    @BindView(R.id.no_data_available)
+    TextView noDataAvailableView;
+
     private LinearLayoutManager layoutManager;
     private StockDataAdapter stockDataAdapter;
+
+    static <T> Observable<T> v2(rx.Observable<T> source) {
+        return toV2Observable(source);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        RxJavaPlugins.setErrorHandler(ErrorHandler.get());
 
         ButterKnife.bind(this);
 
@@ -99,18 +117,44 @@ public class MainActivity extends AppCompatActivity {
         Observable.interval(0, 5, TimeUnit.SECONDS)
                 .doOnNext(i -> stockDataAdapter.clear())
                 .flatMap(i -> randomUserService.fetch(3, "female").toObservable())
+//                .flatMap(
+//                        i -> Observable.<RandomUserResults>error(new RuntimeException("Oops"))
+//                )
                 .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .doOnError(error -> {
+                    log("doOnError", error);
+                    Toast.makeText(this, "We couldn't reach internet - falling back to local data", Toast.LENGTH_SHORT).show();
+                })
+                .observeOn(Schedulers.io())
                 .map(r -> r.results)
-                .flatMap(r -> Observable.fromIterable(r))
-                .map(r -> StockUpdate.create(r))
+                .flatMap(Observable::fromIterable)
+                .map(StockUpdate::create)
                 .doOnNext(this::saveStockUpdate)
+                .onExceptionResumeNext(v2(StorIOFactory.get(this)
+                        .get()
+                        .listOfObjects(StockUpdate.class)
+                        .withQuery(Query.builder()
+                                .table(StockUpdateTable.TABLE)
+                                .orderBy("date DESC")
+                                .limit(50)
+                                .build())
+                        .prepare()
+                        .asRxObservable())
+                        .take(1)
+                        .flatMap(Observable::fromIterable))
                 .observeOn(AndroidSchedulers.mainThread())
                 .subscribe(data -> {
-                    log("subscribe: " + data);
+                    log("subscribe: " + data.getStockSymbol());
+                    noDataAvailableView.setVisibility(View.GONE);
                     stockDataAdapter.add(data);
-                }, this::log);
-
+                }, e -> {
+                    if (stockDataAdapter.getItemCount() == 0) {
+                        noDataAvailableView.setVisibility(View.VISIBLE);
+                    }
+                });
     }
+
 
     class StockDataAdapter extends RecyclerView.Adapter<StockUpdateViewHolder> {
         private final List<StockUpdate> list = new ArrayList<>();
@@ -172,6 +216,22 @@ public class MainActivity extends AppCompatActivity {
                 .prepare()
                 .asRxSingle()
                 .subscribe();
+    }
+
+
+    private void getStockUpdate(Observer<? super StockUpdate> observer) {
+        v2(StorIOFactory.get(this)
+                .get()
+                .listOfObjects(StockUpdate.class)
+                .withQuery(Query.builder()
+                        .table(StockUpdateTable.TABLE)
+                        .orderBy("date DESC")
+                        .limit(50)
+                        .build())
+                .prepare()
+                .asRxObservable())
+                .take(1)
+                .flatMap(Observable::fromIterable);
     }
 
     // log
