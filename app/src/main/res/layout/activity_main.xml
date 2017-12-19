@@ -13,6 +13,14 @@
         android:id="@+id/hello_world_greet"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content" />
+
+    <Button
+        android:id="@+id/start_another_activity_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/hello_world_greet"
+        android:layout_margin="16dp"
+        android:text="Start!" />
     
     <android.support.v7.widget.RecyclerView
         android:layout_width="match_parent"
@@ -31,4 +39,5 @@
         android:textAlignment="center"
         android:textSize="26sp"
         android:visibility="gone" />
+
 </RelativeLayout>

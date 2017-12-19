@@ -1,5 +1,6 @@
 package io.zjw.rxdemo;
 
+import android.content.Intent;
 import android.os.Bundle;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
@@ -9,6 +10,7 @@ import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -24,6 +26,7 @@ import java.util.concurrent.TimeUnit;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
 import io.reactivex.Observable;
 import io.reactivex.Observer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
@@ -49,6 +52,11 @@ public class MainActivity extends AppCompatActivity {
 
     @BindView(R.id.no_data_available)
     TextView noDataAvailableView;
+
+    @OnClick(R.id.start_another_activity_button)
+    public void onStartAnotherActivityButtonClick(Button button) {
+        startActivity(new Intent(this, MockActivity.class));
+    }
 
     private LinearLayoutManager layoutManager;
     private StockDataAdapter stockDataAdapter;
@@ -137,7 +145,7 @@ public class MainActivity extends AppCompatActivity {
                         .withQuery(Query.builder()
                                 .table(StockUpdateTable.TABLE)
                                 .orderBy("date DESC")
-                                .limit(50)
+                                .limit(3)
                                 .build())
                         .prepare()
                         .asRxObservable())
