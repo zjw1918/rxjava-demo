@@ -23,7 +23,7 @@ public class StockUpdateTable {
             + Columns.STOCK_SYMBOL + " TEXT NOT NULL, "
             + Columns.DATE + " LONG NOT NULL, "
             + Columns.PRICE + " LONG NOT NULL, "
-            + Columns.TWITTER_STATUS + " TEXT NULL, "
+            + Columns.TWITTER_STATUS + " TEXT NULL "
             + ");";
     }
 

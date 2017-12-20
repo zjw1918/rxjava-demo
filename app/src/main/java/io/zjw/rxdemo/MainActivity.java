@@ -24,6 +24,7 @@ import java.text.DecimalFormat;
 import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
@@ -66,10 +67,10 @@ public class MainActivity extends AppCompatActivity {
     @BindView(R.id.no_data_available)
     TextView noDataAvailableView;
 
-    @OnClick(R.id.start_another_activity_button)
-    public void onStartAnotherActivityButtonClick(Button button) {
-        startActivity(new Intent(this, MockActivity.class));
-    }
+//    @OnClick(R.id.start_another_activity_button)
+//    public void onStartAnotherActivityButtonClick(Button button) {
+//        startActivity(new Intent(this, MockActivity.class));
+//    }
 
     private LinearLayoutManager layoutManager;
     private StockDataAdapter stockDataAdapter;
@@ -149,17 +150,18 @@ public class MainActivity extends AppCompatActivity {
 
     private void startFetch() {
         Observable.merge(
-                Observable.interval(30, 5, TimeUnit.SECONDS)
+                Observable.interval(5, 10, TimeUnit.SECONDS)
                         .doOnNext(i -> stockDataAdapter.clear())
                         .flatMap(i -> RetrofitRandomUserFactory.getInstance().fetch(3, "female").toObservable())
                         .map(r -> r.results)
                         .flatMap(Observable::fromIterable)
                         .map(StockUpdate::create),
-                observeTwitterStream(configuration, filterQuery).map(StockUpdate::create)
+                observeTwitterStream(configuration, filterQuery)
+                        .sample(2, TimeUnit.SECONDS)
+                        .map(StockUpdate::create)
         )
                 .compose(RxLifecycle.bindUntilEvent(lifecycleSubject, ActivityEvent.DESTROY))
                 .subscribeOn(Schedulers.io())
-                .observeOn(Schedulers.io())
                 .doOnNext(this::saveStockUpdate)
                 .onExceptionResumeNext(v2(StorIOFactory.get(this)
                         .get()
@@ -182,6 +184,7 @@ public class MainActivity extends AppCompatActivity {
                     log("subscribe: " + data.getStockSymbol());
                     noDataAvailableView.setVisibility(View.GONE);
                     stockDataAdapter.add(data);
+                    recyclerView.smoothScrollToPosition(0);
                 }, e -> {
                     if (stockDataAdapter.getItemCount() == 0) {
                         noDataAvailableView.setVisibility(View.VISIBLE);
@@ -344,7 +347,7 @@ public class MainActivity extends AppCompatActivity {
         }
 
         public void add(StockUpdate stockUpdate) {
-            list.add(stockUpdate);
+            list.add(0, stockUpdate);
             notifyDataSetChanged();
 //            notifyItemInserted(list.size() - 1);
         }
