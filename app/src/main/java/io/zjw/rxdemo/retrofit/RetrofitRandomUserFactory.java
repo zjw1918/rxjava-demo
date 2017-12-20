@@ -8,16 +8,24 @@ import retrofit2.Retrofit;
 import retrofit2.converter.gson.GsonConverterFactory;
 
 public class RetrofitRandomUserFactory {
-    HttpLoggingInterceptor interceptor = new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY);
-    OkHttpClient client = new OkHttpClient.Builder().addInterceptor(interceptor).build();
-    Retrofit retrofit = new Retrofit.Builder()
-            .client(client)
-            .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
-            .addConverterFactory(GsonConverterFactory.create())
-            .baseUrl("https://randomuser.me/")
-            .build();
+    private static RandomUserService INSTANCE;
 
-    public RandomUserService create() {
-        return retrofit.create(RandomUserService.class);
+    private RetrofitRandomUserFactory() {
+
+    }
+
+    public static synchronized RandomUserService getInstance() {
+        if (INSTANCE != null) return INSTANCE;
+        HttpLoggingInterceptor interceptor = new HttpLoggingInterceptor().setLevel(HttpLoggingInterceptor.Level.BODY);
+        OkHttpClient client = new OkHttpClient.Builder().addInterceptor(interceptor).build();
+        Retrofit retrofit = new Retrofit.Builder()
+                .client(client)
+                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+                .addConverterFactory(GsonConverterFactory.create())
+                .baseUrl("https://randomuser.me/")
+                .build();
+
+        INSTANCE = retrofit.create(RandomUserService.class);
+        return INSTANCE;
     }
 }

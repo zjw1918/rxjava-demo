@@ -40,6 +40,7 @@ public class StockUpdatePutResolver extends DefaultPutResolver<StockUpdate> {
                 entity.getStockSymbol());
         contentValues.put(StockUpdateTable.Columns.PRICE, getPrice(entity));
         contentValues.put(StockUpdateTable.Columns.DATE, getDate(entity));
+        contentValues.put(StockUpdateTable.Columns.TWITTER_STATUS, entity.getTwitterStatus());
         return contentValues;
     }
 

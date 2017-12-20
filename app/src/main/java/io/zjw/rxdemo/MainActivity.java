@@ -15,6 +15,9 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.pushtorefresh.storio2.sqlite.queries.Query;
+import com.trello.rxlifecycle2.RxLifecycle;
+import com.trello.rxlifecycle2.android.ActivityEvent;
+import com.trello.rxlifecycle2.android.RxLifecycleAndroid;
 
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
@@ -32,18 +35,28 @@ import io.reactivex.Observer;
 import io.reactivex.android.schedulers.AndroidSchedulers;
 import io.reactivex.plugins.RxJavaPlugins;
 import io.reactivex.schedulers.Schedulers;
+import io.reactivex.subjects.BehaviorSubject;
 import io.zjw.rxdemo.errors.ErrorHandler;
-import io.zjw.rxdemo.gson.RandomUserResults;
 import io.zjw.rxdemo.models.StockUpdate;
 import io.zjw.rxdemo.retrofit.RandomUserService;
 import io.zjw.rxdemo.retrofit.RetrofitRandomUserFactory;
 import io.zjw.rxdemo.storio.StockUpdateTable;
 import io.zjw.rxdemo.storio.StorIOFactory;
+import twitter4j.FilterQuery;
+import twitter4j.StallWarning;
+import twitter4j.Status;
+import twitter4j.StatusDeletionNotice;
+import twitter4j.StatusListener;
+import twitter4j.TwitterStream;
+import twitter4j.TwitterStreamFactory;
+import twitter4j.conf.Configuration;
+import twitter4j.conf.ConfigurationBuilder;
 
 import static hu.akarnokd.rxjava.interop.RxJavaInterop.toV2Observable;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "MainActivity";
+    BehaviorSubject<ActivityEvent> lifecycleSubject = BehaviorSubject.create();
     @BindView(R.id.hello_world_greet)
     TextView helloText;
 
@@ -65,11 +78,56 @@ public class MainActivity extends AppCompatActivity {
         return toV2Observable(source);
     }
 
+    final Configuration configuration = new ConfigurationBuilder()
+            .setDebugEnabled(true)
+            .setOAuthConsumerKey("aQLuORYqjwg8m9gUjugSIVjDH")
+            .setOAuthConsumerSecret("WlAEQtTsa8jKU0cgT1Lrl4fmY5xsf1UlZNZGtDhstCBMtwyFww")
+            .setOAuthAccessToken("970274502-ph0HKIxBjJQWNCxyWUTKW5CfVAFYsS9C8wZwNRTl")
+            .setOAuthAccessTokenSecret("cy7q5Ye27BDoaZNYHMsKu71NAHPT6uymaX1c4K43QdYZD")
+            .build();
+    FilterQuery filterQuery = new FilterQuery().track("Yahoo", "Google", "Microsoft").language("en");
+
+//    TwitterStream twitterStream = new TwitterStreamFactory(configuration).getInstance();
+//
+//    StatusListener twitterListenner = new StatusListener() {
+//        @Override
+//        public void onStatus(Status status) {
+//            System.out.println(status.getUser().getName() + " : " + status.getText());
+//
+//        }
+//
+//        @Override
+//        public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
+//
+//        }
+//
+//        @Override
+//        public void onTrackLimitationNotice(int numberOfLimitedStatuses) {
+//
+//        }
+//
+//        @Override
+//        public void onScrubGeo(long userId, long upToStatusId) {
+//
+//        }
+//
+//        @Override
+//        public void onStallWarning(StallWarning warning) {
+//
+//        }
+//
+//        @Override
+//        public void onException(Exception ex) {
+//            ex.printStackTrace();
+//        }
+//    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         RxJavaPlugins.setErrorHandler(ErrorHandler.get());
+        lifecycleSubject.onNext(ActivityEvent.CREATE);
 
         ButterKnife.bind(this);
 
@@ -81,21 +139,115 @@ public class MainActivity extends AppCompatActivity {
         stockDataAdapter = new StockDataAdapter();
         recyclerView.setAdapter(stockDataAdapter);
 
-        Observable.just(
-                new StockUpdate("GOOGLE", BigDecimal.valueOf(12.43), new Date()),
-                new StockUpdate("APPL", BigDecimal.valueOf(645.1), new Date()),
-                new StockUpdate("TWTR", BigDecimal.valueOf(1.43), new Date())
+//        startQuery();
+
+//        prepareTwitter(); // no rx way
+//        prepareTwitterAdObservable();
+
+        startFetch();
+    }
+
+    private void startFetch() {
+        Observable.merge(
+                Observable.interval(30, 5, TimeUnit.SECONDS)
+                        .doOnNext(i -> stockDataAdapter.clear())
+                        .flatMap(i -> RetrofitRandomUserFactory.getInstance().fetch(3, "female").toObservable())
+                        .map(r -> r.results)
+                        .flatMap(Observable::fromIterable)
+                        .map(StockUpdate::create),
+                observeTwitterStream(configuration, filterQuery).map(StockUpdate::create)
         )
-//                .subscribeOn(Schedulers.io())
-                .doOnNext(e -> Log.d(TAG, Thread.currentThread().getName() + ", doOnNext:" + e))
-//                .observeOn(AndroidSchedulers.mainThread())
-                .subscribe(e -> {
-                    Log.d(TAG, Thread.currentThread().getName() + ", subscribe:" + e);
-                    stockDataAdapter.add(e);
+                .compose(RxLifecycle.bindUntilEvent(lifecycleSubject, ActivityEvent.DESTROY))
+                .subscribeOn(Schedulers.io())
+                .observeOn(Schedulers.io())
+                .doOnNext(this::saveStockUpdate)
+                .onExceptionResumeNext(v2(StorIOFactory.get(this)
+                        .get()
+                        .listOfObjects(StockUpdate.class)
+                        .withQuery(Query.builder()
+                                .table(StockUpdateTable.TABLE)
+                                .orderBy("date DESC")
+                                .limit(3)
+                                .build())
+                        .prepare()
+                        .asRxObservable())
+                        .take(1)
+                        .flatMap(Observable::fromIterable))
+                .observeOn(AndroidSchedulers.mainThread())
+                .doOnError(error -> {
+                    log("doOnError", error);
+                    Toast.makeText(this, "We couldn't reach internet - falling back to local data", Toast.LENGTH_SHORT).show();
+                })
+                .subscribe(data -> {
+                    log("subscribe: " + data.getStockSymbol());
+                    noDataAvailableView.setVisibility(View.GONE);
+                    stockDataAdapter.add(data);
+                }, e -> {
+                    if (stockDataAdapter.getItemCount() == 0) {
+                        noDataAvailableView.setVisibility(View.VISIBLE);
+                    }
                 });
+    }
 
-        startQuery();
+    Observable<Status> observeTwitterStream(Configuration configuration, FilterQuery filterQuery) {
+        return Observable.create(emitter -> {
+            TwitterStream ts = new TwitterStreamFactory(configuration).getInstance();
+            emitter.setCancellable(ts::shutdown);
 
+            StatusListener statusListener = new StatusListener() {
+                @Override
+                public void onException(Exception ex) {
+                    emitter.onError(ex);
+                }
+
+                @Override
+                public void onStatus(Status status) {
+                    emitter.onNext(status);
+                }
+
+                @Override
+                public void onDeletionNotice(StatusDeletionNotice statusDeletionNotice) {
+
+                }
+
+                @Override
+                public void onTrackLimitationNotice(int numberOfLimitedStatuses) {
+
+                }
+
+                @Override
+                public void onScrubGeo(long userId, long upToStatusId) {
+
+                }
+
+                @Override
+                public void onStallWarning(StallWarning warning) {
+
+                }
+            };
+            ts.addListener(statusListener);
+            ts.filter(filterQuery);
+        });
+    }
+
+//    private void prepareTwitter() {
+//        twitterStream.addListener(twitterListenner);
+//        twitterStream.filter(new FilterQuery().track("Yahoo", "Google", "Microsoft").language("en"));
+//    }
+    
+    
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        log("onResume");
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        log("onPause");
+        lifecycleSubject.onNext(ActivityEvent.PAUSE);
     }
 
     private void startQuery() {
@@ -110,7 +262,7 @@ public class MainActivity extends AppCompatActivity {
 //                    log(data.query.results.quote.get(0).symbol);
 //                }, this::log);
 
-        RandomUserService randomUserService = new RetrofitRandomUserFactory().create();
+        RandomUserService randomUserService = RetrofitRandomUserFactory.getInstance();
 //        randomUserService.fetch(8, "female")
 //                .subscribeOn(Schedulers.io())
 //                .toObservable()
@@ -123,6 +275,7 @@ public class MainActivity extends AppCompatActivity {
 //                    stockDataAdapter.add(data);
 //                });
         Observable.interval(0, 5, TimeUnit.SECONDS)
+                .compose(RxLifecycle.bindUntilEvent(lifecycleSubject, ActivityEvent.DESTROY))
                 .doOnNext(i -> stockDataAdapter.clear())
                 .flatMap(i -> randomUserService.fetch(3, "female").toObservable())
 //                .flatMap(
@@ -163,6 +316,11 @@ public class MainActivity extends AppCompatActivity {
                 });
     }
 
+    @Override
+    protected void onDestroy() {
+        lifecycleSubject.onNext(ActivityEvent.DESTROY);
+        super.onDestroy();
+    }
 
     class StockDataAdapter extends RecyclerView.Adapter<StockUpdateViewHolder> {
         private final List<StockUpdate> list = new ArrayList<>();
@@ -200,6 +358,7 @@ public class MainActivity extends AppCompatActivity {
         @BindView(R.id.stock_item_symbol) TextView stockSymbol;
         @BindView(R.id.stock_item_date) TextView date;
         @BindView(R.id.stock_item_price) TextView price;
+        @BindView(R.id.stock_item_twitter_status) TextView twitterStatus;
 
         private final NumberFormat PRICE_FORMAT = new DecimalFormat("#0.00");
 
@@ -212,7 +371,21 @@ public class MainActivity extends AppCompatActivity {
             stockSymbol.setText(stockUpdate.getStockSymbol());
             date.setText(DateFormat.format("yyyy-MM-dd hh:mm", stockUpdate.getDate()));
             price.setText(PRICE_FORMAT.format(stockUpdate.getPrice().floatValue()));
+            twitterStatus.setText(stockUpdate.getTwitterStatus());
+            setIsStatusUpdate(stockUpdate.isTwitterStatusUpdate());
         }
+
+         private void setIsStatusUpdate(boolean twitterStatusUpdate) {
+             if (twitterStatusUpdate) {
+                 this.twitterStatus.setVisibility(View.VISIBLE);
+                 this.price.setVisibility(View.GONE);
+                 this.stockSymbol.setVisibility(View.GONE);
+             } else {
+                 this.twitterStatus.setVisibility(View.GONE);
+                 this.price.setVisibility(View.VISIBLE);
+                 this.stockSymbol.setVisibility(View.VISIBLE);
+             } }
+
     }
 
     // save sqlite
