@@ -41,6 +41,7 @@ import io.zjw.rxdemo.errors.ErrorHandler;
 import io.zjw.rxdemo.models.StockUpdate;
 import io.zjw.rxdemo.retrofit.RandomUserService;
 import io.zjw.rxdemo.retrofit.RetrofitRandomUserFactory;
+import io.zjw.rxdemo.rxtransforms.FileCacheObservableTransformer;
 import io.zjw.rxdemo.storio.StockUpdateTable;
 import io.zjw.rxdemo.storio.StorIOFactory;
 import twitter4j.FilterQuery;
@@ -54,6 +55,9 @@ import twitter4j.conf.Configuration;
 import twitter4j.conf.ConfigurationBuilder;
 
 import static hu.akarnokd.rxjava.interop.RxJavaInterop.toV2Observable;
+import static io.zjw.rxdemo.rxtransforms.FileCacheObservableTransformer.cacheToLocalFileNamed;
+import static io.zjw.rxdemo.rxtransforms.LoggerTransformer.debugLog;
+import static io.zjw.rxdemo.rxtransforms.TimingObservableTransformer.timeItems;
 
 public class MainActivity extends AppCompatActivity {
     public static final String TAG = "MainActivity";
@@ -145,7 +149,26 @@ public class MainActivity extends AppCompatActivity {
 //        prepareTwitter(); // no rx way
 //        prepareTwitterAdObservable();
 
-        startFetch();
+//        startFetch();
+
+//        Observable.just("Hello xxx")
+//                .compose(cacheToLocalFileNamed("test", this))
+//                .subscribe(this::log);
+//
+//        Observable.interval(4, TimeUnit.SECONDS)
+//                .compose(timeItems((seconds) -> {
+//                    Log.d("APP", "Seconds passed since the start: " + seconds);
+//                }))
+//                .subscribe(i -> log(i.toString()));
+
+
+        Observable.interval(1, TimeUnit.SECONDS)
+                .compose(debugLog("afterInterval"))
+                .flatMap((v) -> Observable.just("items"))
+                .observeOn(AndroidSchedulers.mainThread())
+                .compose(debugLog("afterFlatMap"))
+                .subscribe();
+
     }
 
     private void startFetch() {
